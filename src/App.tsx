@@ -34,8 +34,60 @@ import {
   Cpu,
   Info,
   Lock,
-  ChevronRight
+  ChevronRight,
+  Clock,
+  History,
+  Save,
+  FileDown,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck
 } from "lucide-react";
+
+interface DiffChange {
+  type: "added" | "removed" | "unchanged";
+  text: string;
+}
+
+function computeWordDiff(oldText: string, newText: string): DiffChange[] {
+  if (!oldText) return [{ type: "added", text: newText }];
+  if (!newText) return [{ type: "removed", text: oldText }];
+
+  const oldWords = oldText.split(/(\s+)/);
+  const newWords = newText.split(/(\s+)/);
+  
+  const dp: number[][] = Array(oldWords.length + 1).fill(0).map(() => Array(newWords.length + 1).fill(0));
+  
+  for (let i = 1; i <= oldWords.length; i++) {
+    for (let j = 1; j <= newWords.length; j++) {
+      if (oldWords[i - 1] === newWords[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+  
+  const result: DiffChange[] = [];
+  let i = oldWords.length;
+  let j = newWords.length;
+  
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldWords[i - 1] === newWords[j - 1]) {
+      result.unshift({ type: "unchanged", text: oldWords[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      result.unshift({ type: "added", text: newWords[j - 1] });
+      j--;
+    } else {
+      result.unshift({ type: "removed", text: oldWords[i - 1] });
+      i--;
+    }
+  }
+  
+  return result;
+}
 
 export default function App() {
   // ---- Core States ----
@@ -126,7 +178,69 @@ export default function App() {
   const [matchResults, setMatchResults] = useState<{ [tenderId: string]: MatchResult }>({});
   
   // Active drafts storage
-  const [bidDrafts, setBidDrafts] = useState<{ [tenderId: string]: BidDraft }>({});
+  const [bidDrafts, setBidDrafts] = useState<{ [tenderId: string]: BidDraft }>(() => {
+    return {
+      "tender-1": {
+        "req-1-1": {
+          text: "Svea Cloud & Code AB erbjuder Lina Bergman som Senior Frontendutvecklare och UI/UX-arkitekt. Lina har 8 års verifierad expertis inom React, modern TypeScript och Tailwind CSS. Hon möter Skatteverkets krav till 100% och har tidigare designat offentliga, fullt tillgängliga webbgränssnitt enligt WCAG 2.1 AA för Stockholms Stad, vilket garanterar en robust och lagbunden leverans.",
+          isGenerating: false,
+          history: [
+            "Svea Cloud & Code AB tillhandahåller härmed Lina Bergman för rollen som frontendutvecklare. Lina Bergman har god erfarenhet av React och TypeScript och har byggt webbapplikationer.",
+            "Svea Cloud & Code AB tillhandahåller Lina Bergman som senior frontendutvecklare. Lina har över 8 års erfarenhet av React och modern TypeScript. Hon har tidigare byggt tillgängliga webbgränssnitt enligt WCAG 2.1 AA för Stockholms Stad.",
+            "Svea Cloud & Code AB erbjuder Lina Bergman som Senior Frontendutvecklare och UI/UX-arkitekt. Lina har 8 års verifierad expertis inom React, modern TypeScript och Tailwind CSS. Hon möter Skatteverkets krav till 100% och har tidigare designat offentliga, fullt tillgängliga webbgränssnitt enligt WCAG 2.1 AA för Stockholms Stad, vilket garanterar en robust och lagbunden leverans."
+          ]
+        },
+        "req-1-2": {
+          text: "Svea Cloud & Code AB har implementerat en strikt policy för säker applikationsutveckling integrerad direkt i vår CI/CD-pipeline. All kodgenomgång baseras på OWASP Top 10-standarder samt kollegial granskning för att trygga att eventuella sårbarheter identifieras före produktionssättning. Vårt DevSecOps-arbetssätt leds av Jonas Dahl.",
+          isGenerating: false,
+          history: [
+            "Svea Cloud & Code AB arbetar med OWASP Top 10 och gör regelbunden kodgranskning i alla projekt.",
+            "Svea Cloud & Code AB har implementerat en strikt policy för säker applikationsutveckling integrerad direkt i vår CI/CD-pipeline. All kodgenomgång baseras på OWASP Top 10-standarder samt kollegial granskning för att trygga att eventuella sårbarheter identifieras före produktionssättning. Vårt DevSecOps-arbetssätt leds av Jonas Dahl."
+          ]
+        }
+      }
+    };
+  });
+
+  // Active sub-tabs inside Section B (Editor vs Snapshots)
+  const [bidConsoleTab, setBidConsoleTab] = useState<"editor" | "snapshots">("editor");
+
+  // Snapshots storage of whole bids for security audits and reverting
+  const [bidSnapshots, setBidSnapshots] = useState<{ [tenderId: string]: any[] }>(() => {
+    return {
+      "tender-1": [
+        {
+          id: "snap-1-1",
+          tenderId: "tender-1",
+          label: "Initialt AI-förslag",
+          timestamp: "2026-06-13 20:15",
+          author: "AutoBid AI-Skribent",
+          drafts: {
+            "req-1-1": "Svea Cloud & Code AB tillhandahåller härmed Lina Bergman för rollen som frontendutvecklare. Lina Bergman har god erfarenhet av React och TypeScript och har byggt webbapplikationer.",
+            "req-1-2": "Svea Cloud & Code AB arbetar med OWASP Top 10 och gör regelbunden kodgranskning i alla projekt."
+          }
+        },
+        {
+          id: "snap-1-2",
+          tenderId: "tender-1",
+          label: "Internt utkast före granskning",
+          timestamp: "2026-06-13 21:30",
+          author: "Lina Bergman (Senior Frontend)",
+          drafts: {
+            "req-1-1": "Svea Cloud & Code AB tillhandahåller Lina Bergman som senior frontendutvecklare. Lina har över 8 års erfarenhet av React och modern TypeScript. Hon har tidigare byggt tillgängliga webbgränssnitt enligt WCAG 2.1 AA för Stockholms Stad.",
+            "req-1-2": "Svea Cloud & Code AB arbetar med OWASP Top 10 och gör regelbunden kodgranskning i alla projekt."
+          }
+        }
+      ]
+    };
+  });
+
+  const [snapshotLabel, setSnapshotLabel] = useState<string>("");
+  const [expandedSnapshotId, setExpandedSnapshotId] = useState<string | null>(null);
+
+  // States for paragraph level version comparison
+  const [viewingParagraphHistory, setViewingParagraphHistory] = useState<boolean>(false);
+  const [selectedHistoryVersionIndex, setSelectedHistoryVersionIndex] = useState<number | null>(null);
   
   // Notification banner state
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
@@ -682,6 +796,11 @@ export default function App() {
     setSelectedTender(tender);
     setActiveRequirementIndex(0);
     setIsCurrentlyEditingInline(false);
+    setBidConsoleTab("editor");
+    setViewingParagraphHistory(false);
+    setSelectedHistoryVersionIndex(null);
+    setExpandedSnapshotId(null);
+    setSnapshotLabel("");
   };
 
   // Copy current active generated draft to clipboard
@@ -756,6 +875,132 @@ export default function App() {
     document.body.removeChild(element);
     
     showToast("Hela anbudsdokumentet (.txt) exporterades framgångsrikt!", "success");
+  };
+
+  // Save a historic snapshot of the current state of the whole bid
+  const handleSaveBidSnapshot = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!snapshotLabel.trim()) {
+      showToast("Vänligen skriv en beskrivande etikett för denna snapshot.", "error");
+      return;
+    }
+
+    const currentTenderDrafts = bidDrafts[selectedTender.id] || {};
+    
+    // Check if there is anything to capture
+    const hasAnyDrafts = Object.keys(currentTenderDrafts).some(key => currentTenderDrafts[key]?.text);
+    if (!hasAnyDrafts) {
+      showToast("Det finns inga anbudssvar sparade ännu för att ta en snapshot av.", "error");
+      return;
+    }
+
+    // Capture requirementId to text mapping
+    const draftsMapping: { [requirementId: string]: string } = {};
+    for (const reqId in currentTenderDrafts) {
+      if (currentTenderDrafts[reqId]?.text) {
+        draftsMapping[reqId] = currentTenderDrafts[reqId].text;
+      }
+    }
+
+    const formatTime = (date: Date) => {
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+
+    const newSnapshot = {
+      id: `snap-${Date.now()}`,
+      tenderId: selectedTender.id,
+      label: snapshotLabel.trim(),
+      timestamp: formatTime(new Date()),
+      author: "Saman Akbarian (Säkerhetsansvarig)", // Dynamic user identification
+      drafts: draftsMapping
+    };
+
+    setBidSnapshots(prev => {
+      const list = prev[selectedTender.id] || [];
+      return {
+        ...prev,
+        [selectedTender.id]: [newSnapshot, ...list]
+      };
+    });
+
+    setExpandedSnapshotId(newSnapshot.id);
+    setSnapshotLabel("");
+    showToast(`Historisk snapshot '${newSnapshot.label}' sparad i den säkra audit-loggen!`, "success");
+  };
+
+  // Revert all draft elements to a specific snapshot
+  const handleRevertBidToSnapshot = (snapshotId: string) => {
+    const list = bidSnapshots[selectedTender.id] || [];
+    const snapshot = list.find(s => s.id === snapshotId);
+    if (!snapshot) return;
+
+    setBidDrafts(prev => {
+      const currentTenderDrafts = prev[selectedTender.id] || {};
+      const updatedTenderDrafts: BidDraft = {};
+
+      // Initialize all requirements in the tender with blank or previous versions
+      selectedTender.requirements.forEach(req => {
+        const textInSnapshot = snapshot.drafts[req.id] || "";
+        const currentItem = currentTenderDrafts[req.id] || { text: "", history: [] };
+        
+        // Pushing to paragraph history to maintain full traceability
+        const newHistory = textInSnapshot 
+          ? (currentItem.history ? [...currentItem.history, textInSnapshot] : [textInSnapshot])
+          : (currentItem.history || []);
+
+        updatedTenderDrafts[req.id] = {
+          ...currentItem,
+          text: textInSnapshot,
+          history: newHistory
+        };
+      });
+
+      return {
+        ...prev,
+        [selectedTender.id]: updatedTenderDrafts
+      };
+    });
+
+    setViewingParagraphHistory(false);
+    setSelectedHistoryVersionIndex(null);
+    showToast(`Hela anbudet har återställts till snapshoten "${snapshot.label}"!`, "success");
+  };
+
+  // Export a draft snapshot as a TXT file
+  const handleExportSnapshot = (snapshotId: string) => {
+    const list = bidSnapshots[selectedTender.id] || [];
+    const snapshot = list.find(s => s.id === snapshotId);
+    if (!snapshot) return;
+
+    let fullText = `# HISTORISKT ANBUDSUTKAST UTIFRÅN SNAPSHOT: ${snapshot.label}\n`;
+    fullText += `## Upphandling: ${selectedTender.title}\n`;
+    fullText += `## Beställare: ${selectedTender.authority}\n`;
+    fullText += `## Snapshot-Datum: ${snapshot.timestamp}\n`;
+    fullText += `## Sparat av: ${snapshot.author}\n`;
+    fullText += `## Återställd Leverantör: ${profile?.companyName || "AutoBid SaaS Partner"}\n\n`;
+    fullText += `========================================================================\n\n`;
+
+    selectedTender.requirements.forEach((req, idx) => {
+      const text = snapshot.drafts[req.id];
+      fullText += `### KRAV ${idx + 1}: ${req.text}\n\n`;
+      if (text) {
+        fullText += `${text}\n\n`;
+      } else {
+        fullText += `*Inget svar sparades för detta krav i detta utkast.*\n\n`;
+      }
+      fullText += `------------------------------------------------------------------------\n\n`;
+    });
+
+    const element = document.createElement("a");
+    const file = new Blob([fullText], { type: "text/plain;charset=utf-8" });
+    element.href = URL.createObjectURL(file);
+    element.download = `Anbudssnapshot_${snapshot.label.replace(/\s+/g, "_")}_${snapshot.timestamp.replace(/[:\s]/g, "-")}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    
+    showToast(`Anbudssnapshot exporterades framgångsrikt som en .txt-fil!`, "success");
   };
 
 
@@ -1121,256 +1366,596 @@ export default function App() {
                 </section>
 
                 {/* SUB-SECTION B: INTERACTIVE AI BID GENERATOR & REFINEMENT CONSOLE */}
-                <section className="w-full lg:w-1/2 flex flex-col bg-[#161618] min-h-0">
+                <section className="w-full lg:w-1/2 flex flex-col bg-[#161618] min-h-0 relative">
                   
                   {/* Panel view bar */}
                   <div className="p-3.5 bg-amber-500 text-black font-bold uppercase tracking-widest text-xs flex justify-between items-center flex-shrink-0 select-none shadow-md">
                     <span className="flex items-center gap-1">
                       <Sparkles className="h-4 w-4 fill-black text-black" />
-                      <span>AI Bid Generator</span>
+                      <span>AI Bid Generator & Audit System</span>
                     </span>
                     <span className="bg-black/10 text-slate-900 border border-black/10 px-2 py-0.5 rounded text-[10px] font-mono">
                       Tone: {profile?.toneOfVoice.styleDescription ? "Klonad (" + profile.companyName.split(" ")[0] + ")" : "Professionell"}
                     </span>
                   </div>
 
-                  {/* ACTIVE TEXT DRAFT PREVIEW PANEL */}
-                  <div className="flex-1 p-5 overflow-y-auto space-y-4">
-                    {/* Active Requirement statement Context */}
-                    <div className="p-3.5 bg-[#0F0F11]/90 rounded-lg border border-white/5 text-xs text-slate-400 leading-relaxed">
-                      <div className="text-[10px] font-bold font-mono text-amber-500 uppercase tracking-wider mb-1">Fokus-Krav:</div>
-                      "{selectedTender.requirements[activeRequirementIndex]?.text}"
-                    </div>
+                  {/* SUB-TABS INTERACTIVE SHIELD COMPONENT */}
+                  <div className="flex border-b border-white/10 bg-[#121214] text-xs flex-shrink-0">
+                    <button
+                      id="subtab-active-editor"
+                      onClick={() => setBidConsoleTab("editor")}
+                      className={`flex-1 py-2.5 font-bold uppercase tracking-wider border-b-2 transition-all ${
+                        bidConsoleTab === "editor"
+                          ? "border-amber-500 text-amber-500 bg-white/[0.02]"
+                          : "border-transparent text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      ✍️ Aktivt Svar
+                    </button>
+                    <button
+                      id="subtab-audit-snapshots"
+                      onClick={() => setBidConsoleTab("snapshots")}
+                      className={`flex-1 py-2.5 font-bold uppercase tracking-wider border-b-2 transition-all relative ${
+                        bidConsoleTab === "snapshots"
+                          ? "border-amber-500 text-amber-500 bg-white/[0.02]"
+                          : "border-transparent text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      🛡️ Snapshots & Revision
+                      {bidSnapshots[selectedTender.id]?.length > 0 && (
+                        <span className="ml-1.5 px-2 py-0.2 bg-amber-500/15 text-amber-500 border border-amber-500/20 text-[9.5px] rounded-full font-mono">
+                          {bidSnapshots[selectedTender.id].length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
 
-                    {/* Check if user profile exists */}
-                    {!profile ? (
-                      <div className="p-8 text-center bg-[#0F0F11]/50 rounded-xl border border-dashed border-white/10 space-y-3">
-                        <AlertCircle className="h-8 w-8 text-amber-400 mx-auto" />
-                        <h4 className="font-bold text-sm text-white">Ingen aktiv bolagsintelligent profil funnen</h4>
-                        <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                          Vänligen ladda en demoprofil eller ladda upp dokument i fliken "Kunskapsbank" för att bygga RAG-kunskapsbasen!
-                        </p>
-                      </div>
-                    ) : (
-                      (() => {
-                        const activeReq = selectedTender.requirements[activeRequirementIndex];
-                        if (!activeReq) return null;
-                        const currentDraft = tenderDrafts[activeReq.id];
+                  {/* MAIN PANEL CONTENT VIEWPORT */}
+                  <div className="flex-1 p-5 overflow-y-auto space-y-4 pb-20">
+                    
+                    {/* TAB A: ACTIVE EDITOR TAB ROW */}
+                    {bidConsoleTab === "editor" && (
+                      <>
+                        {/* Active Requirement statement Context */}
+                        <div className="p-3.5 bg-[#0F0F11]/90 rounded-lg border border-white/5 text-xs text-slate-400 leading-relaxed text-left">
+                          <div className="text-[10px] font-bold font-mono text-amber-500 uppercase tracking-wider mb-1">Fokus-Krav:</div>
+                          "{selectedTender.requirements[activeRequirementIndex]?.text}"
+                        </div>
 
-                        if (isGeneratingSection) {
-                          return (
-                            <div className="p-12 text-center space-y-4">
-                              <RefreshCw className="h-8 w-8 text-amber-500 animate-spin mx-auto" />
-                              <div className="space-y-1">
-                                <h4 className="font-bold text-sm text-white">Autogenererar anbudssvar...</h4>
-                                <p className="text-xs text-slate-500 animate-pulse">
-                                  Hämtar relevant CV-information och tillämpar din Tone of Voice-stilmall.
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        }
+                        {/* Check if user profile exists */}
+                        {!profile ? (
+                          <div className="p-8 text-center bg-[#0F0F11]/50 rounded-xl border border-dashed border-white/10 space-y-3">
+                            <AlertCircle className="h-8 w-8 text-amber-400 mx-auto" />
+                            <h4 className="font-bold text-sm text-white">Ingen aktiv bolagsintelligent profil funnen</h4>
+                            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                              Vänligen ladda en demoprofil eller ladda upp dokument i fliken "Kunskapsbank" för att bygga RAG-kunskapsbasen!
+                            </p>
+                          </div>
+                        ) : (
+                          (() => {
+                            const activeReq = selectedTender.requirements[activeRequirementIndex];
+                            if (!activeReq) return null;
+                            const currentDraft = tenderDrafts[activeReq.id];
 
-                        if (!currentDraft?.text) {
-                          return (
-                            <div className="p-8 py-12 text-center bg-[#0F0F11]/30 rounded-xl border border-white/5 space-y-4">
-                              <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto text-amber-500 border border-amber-500/20">
-                                <Bot className="h-6 w-6" />
-                              </div>
-                              <div className="space-y-1 max-w-sm mx-auto">
-                                <h4 className="font-bold text-sm text-white">Inget utkast genererat än</h4>
-                                <p className="text-xs text-slate-400">
-                                  Klicka på knappen nedan för att skriva ett förhandsutkast anpassat efter bolagets kunskapsbas och skrivstil.
-                                </p>
-                              </div>
-
-                              {currentTier === SubscriptionTier.BASIC ? (
-                                <div className="p-3 bg-red-950/40 border border-red-500/20 rounded-lg max-w-sm mx-auto">
-                                  <p className="text-[10px] text-rose-300 leading-tight">
-                                    🔒 AI-skribenten är låst i **Basic (Radarn)**-planen. Uppgradera till **Pro** för att generera anbudssvar automatiskt!
-                                  </p>
+                            if (isGeneratingSection) {
+                              return (
+                                <div className="p-12 text-center space-y-4">
+                                  <RefreshCw className="h-8 w-8 text-amber-500 animate-spin mx-auto" />
+                                  <div className="space-y-1">
+                                    <h4 className="font-bold text-sm text-white">Autogenererar anbudssvar...</h4>
+                                    <p className="text-xs text-slate-500 animate-pulse">
+                                      Hämtar relevant CV-information och tillämpar din Tone of Voice-stilmall.
+                                    </p>
+                                  </div>
                                 </div>
-                              ) : null}
+                              );
+                            }
 
-                              <div>
-                                <button
-                                  id="btn-generate-draft"
-                                  onClick={() => handleGenerateSectionText(activeReq, activeRequirementIndex)}
-                                  disabled={currentTier === SubscriptionTier.BASIC}
-                                  className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mx-auto transition-all ${
-                                    currentTier === SubscriptionTier.BASIC 
-                                      ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5"
-                                      : "bg-amber-500 hover:bg-amber-600 text-black shadow-lg shadow-amber-500/10"
-                                  }`}
-                                >
-                                  <Sparkles className="h-3.5 w-3.5 fill-current" />
-                                  <span>Automatisera svar med {profile.companyName.split(" ")[0]} röst</span>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        }
+                            if (!currentDraft?.text) {
+                              return (
+                                <div className="p-8 py-12 text-center bg-[#0F0F11]/30 rounded-xl border border-white/5 space-y-4">
+                                  <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto text-amber-500 border border-amber-500/20">
+                                    <Bot className="h-6 w-6" />
+                                  </div>
+                                  <div className="space-y-1 max-w-sm mx-auto">
+                                    <h4 className="font-bold text-sm text-white">Inget utkast genererat än</h4>
+                                    <p className="text-xs text-slate-400">
+                                      Klicka på knappen nedan för att skriva ett förhandsutkast anpassat efter bolagets kunskapsbas och skrivstil.
+                                    </p>
+                                  </div>
 
-                        return (
-                          <div className="space-y-4">
-                            {/* Actions and Status indicators over draft text */}
-                            <div className="flex justify-between items-center text-[10px] text-slate-500 px-1 font-mono">
-                              <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/10">
-                                <span className="w-1 h-1 rounded-full bg-emerald-400"></span>
-                                ISO27001-Validerat AI-Svar
-                              </span>
-                              
-                              <div className="flex gap-1">
-                                {currentDraft.history && currentDraft.history.length > 1 && (
-                                  <span className="bg-white/5 px-2 py-0.5 rounded text-slate-400 border border-white/5">
-                                    Version {currentDraft.history.length}
-                                  </span>
-                                )}
-                                <span className="bg-white/5 px-2 py-0.5 rounded text-slate-400 border border-white/5">
-                                  {currentDraft.text.split(" ").length} ord
-                                </span>
-                              </div>
-                            </div>
+                                  {currentTier === SubscriptionTier.BASIC ? (
+                                    <div className="p-3 bg-red-950/40 border border-red-500/20 rounded-lg max-w-sm mx-auto">
+                                      <p className="text-[10px] text-rose-300 leading-tight border border-red-500/25 p-2 rounded">
+                                        🔒 AI-skribenten är låst i **Basic (Radarn)**-planen. Uppgradera till **Pro** för att generera anbudssvar automatiskt!
+                                      </p>
+                                    </div>
+                                  ) : null}
 
-                            {/* Actual Draft Text container */}
-                            <div className="relative group p-4 border border-white/10 bg-black/40 rounded-xl">
-                              
-                              {/* Overlay Quick Actions */}
-                              <div className="absolute top-3 right-3 flex gap-1.5 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  id={`btn-copy-${activeReq.id}`}
-                                  onClick={() => handleCopyToClipboard(activeReq.id, currentDraft.text)}
-                                  className="p-1 px-2.5 rounded text-[10px] font-bold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 flex items-center gap-1 shadow-sm transition-all"
-                                  title="Kopiera text"
-                                >
-                                  {copiedSectionId === activeReq.id ? (
-                                    <>
-                                      <Check className="h-3 w-3 text-emerald-400" />
-                                      <span className="text-emerald-400">Kopierad</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy className="h-3 w-3" />
-                                      <span>Kopiera</span>
-                                    </>
-                                  )}
-                                </button>
-                                
-                                <button
-                                  id={`btn-edit-inline-${activeReq.id}`}
-                                  onClick={() => {
-                                    if (isCurrentlyEditingInline) {
-                                      setIsCurrentlyEditingInline(false);
-                                    } else {
-                                      startInlineEdit(currentDraft.text);
-                                    }
-                                  }}
-                                  className={`p-1 px-2.5 rounded text-[10px] font-bold border flex items-center gap-1 shadow-sm transition-all ${
-                                    isCurrentlyEditingInline 
-                                      ? "bg-amber-500 text-black border-amber-500" 
-                                      : "bg-white/5 hover:bg-white/10 text-slate-300 border-white/10"
-                                  }`}
-                                  title="Redigera svar för hand"
-                                >
-                                  <span>✍️ Redigera</span>
-                                </button>
-
-                                <button
-                                  id={`btn-regenerate-${activeReq.id}`}
-                                  onClick={() => handleGenerateSectionText(activeReq, activeRequirementIndex)}
-                                  className="p-1 px-2 rounded bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 flex items-center gap-1 shadow-sm transition-all"
-                                  title="Skenerera om"
-                                >
-                                  <RefreshCw className="h-3 w-3" />
-                                </button>
-                              </div>
-
-                              {isCurrentlyEditingInline ? (
-                                <div className="space-y-2 mt-4">
-                                  <div className="text-[10px] font-bold uppercase text-amber-500 font-mono">Manuell editering:</div>
-                                  <textarea
-                                    id="textarea-inline-edit"
-                                    value={editingText}
-                                    onChange={(e) => setEditingText(e.target.value)}
-                                    rows={10}
-                                    className="w-full p-3 bg-black border border-amber-500/30 rounded-lg text-xs leading-relaxed text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                                  />
-                                  <div className="flex justify-end gap-2 text-xs">
-                                    <button 
-                                      id="btn-cancel-inline-edit"
-                                      onClick={() => setIsCurrentlyEditingInline(false)}
-                                      className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded font-bold"
+                                  <div>
+                                    <button
+                                      id="btn-generate-draft"
+                                      onClick={() => handleGenerateSectionText(activeReq, activeRequirementIndex)}
+                                      disabled={currentTier === SubscriptionTier.BASIC}
+                                      className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mx-auto transition-all ${
+                                        currentTier === SubscriptionTier.BASIC 
+                                          ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5"
+                                          : "bg-amber-500 hover:bg-amber-600 text-black shadow-lg shadow-amber-500/10"
+                                      }`}
                                     >
-                                      Avbryt
-                                    </button>
-                                    <button 
-                                      id="btn-save-inline-edit"
-                                      onClick={() => saveInlineEdit(activeReq.id)}
-                                      className="px-3 py-1.5 bg-amber-500 text-black font-extrabold rounded hover:bg-amber-600"
-                                    >
-                                      Spara ändringar
+                                      <Sparkles className="h-3.5 w-3.5 fill-current" />
+                                      <span>Automatisera svar med {profile.companyName.split(" ")[0]} röst</span>
                                     </button>
                                   </div>
                                 </div>
-                              ) : (
-                                <div className="text-xs text-slate-300 leading-relaxed space-y-3 whitespace-pre-line select-text">
-                                  {currentDraft.text}
-                                </div>
-                              )}
-                            </div>
+                              );
+                            }
 
-                            {/* REFINEMENT BOX CHAT INTERACTION FROM INPUT */}
-                            {currentTier !== SubscriptionTier.BASIC && (
-                              <section className="bg-black/30 p-4 border border-white/5 rounded-xl space-y-3">
-                                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                                  <Bot className="h-3.5 w-3.5 text-amber-500" />
-                                  <span>Förfina valet med AI-feedback</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500">
-                                  Be roboten formulera om mer formellt, infoga specifika fackbegrepp, eller framhäva referenser.
-                                </p>
-                                
-                                <div className="flex gap-2">
-                                  <input
-                                    id="input-feedback"
-                                    type="text"
-                                    placeholder="Skriv feedback... t.ex 'gör mer formell och ta bort säljsnack'"
-                                    value={userFeedbackText}
-                                    onChange={(e) => setUserFeedbackText(e.target.value)}
-                                    disabled={isRefiningSection}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") handleRefineSectionText(activeReq, currentDraft.text);
-                                    }}
-                                    className="flex-1 bg-black/80 text-xs text-slate-100 border border-white/10 rounded-lg px-3 py-2.5 focus:outline-none focus:border-amber-500/50"
-                                  />
-                                  <button
-                                    id="btn-send-feedback"
-                                    onClick={() => handleRefineSectionText(activeReq, currentDraft.text)}
-                                    disabled={isRefiningSection || !userFeedbackText.trim()}
-                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:bg-white/5 disabled:text-slate-600 border border-white/10 rounded-lg text-xs font-bold text-slate-300 transition-colors flex items-center justify-center"
-                                  >
-                                    {isRefiningSection ? (
-                                      <RefreshCw className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <Send className="h-3.5 w-3.5" />
+                            return (
+                              <div className="space-y-4 text-left">
+                                {/* Actions and Status indicators over draft text */}
+                                <div className="flex justify-between items-center text-[10px] text-slate-500 px-1 font-mono">
+                                  <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/10">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                    ISO27001-Validerat AI-Svar
+                                  </span>
+                                  
+                                  <div className="flex gap-1.5">
+                                    {currentDraft.history && currentDraft.history.length > 1 && (
+                                      <span className="bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 font-bold">
+                                        Version {currentDraft.history.length}
+                                      </span>
                                     )}
-                                  </button>
+                                    <span className="bg-white/5 px-2 py-0.5 rounded text-slate-400 border border-white/5">
+                                      {currentDraft.text.split(" ").length} ord
+                                    </span>
+                                  </div>
                                 </div>
-                              </section>
-                            )}
-                          </div>
-                        );
-                      })()
+
+                                {/* Actual Draft Text container */}
+                                <div className="relative group p-4 border border-white/10 bg-black/40 rounded-xl">
+                                  
+                                  {/* Overlay Quick Actions */}
+                                  <div className="absolute top-3 right-3 flex gap-1.5 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      id={`btn-copy-${activeReq.id}`}
+                                      onClick={() => handleCopyToClipboard(activeReq.id, currentDraft.text)}
+                                      className="p-1 px-2.5 rounded text-[10px] font-bold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 flex items-center gap-1 shadow-sm transition-all"
+                                      title="Kopiera text"
+                                    >
+                                      {copiedSectionId === activeReq.id ? (
+                                        <>
+                                          <Check className="h-3 w-3 text-emerald-400" />
+                                          <span className="text-emerald-400">Kopierad</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="h-3 w-3" />
+                                          <span>Kopiera</span>
+                                        </>
+                                      )}
+                                    </button>
+                                    
+                                    <button
+                                      id={`btn-edit-inline-${activeReq.id}`}
+                                      onClick={() => {
+                                        if (isCurrentlyEditingInline) {
+                                          setIsCurrentlyEditingInline(false);
+                                        } else {
+                                          startInlineEdit(currentDraft.text);
+                                        }
+                                      }}
+                                      className={`p-1 px-2.5 rounded text-[10px] font-bold border flex items-center gap-1 shadow-sm transition-all ${
+                                        isCurrentlyEditingInline 
+                                          ? "bg-amber-500 text-black border-amber-500" 
+                                          : "bg-white/5 hover:bg-white/10 text-slate-300 border-white/10"
+                                      }`}
+                                      title="Redigera svar för hand"
+                                    >
+                                      <span>✍️ Redigera</span>
+                                    </button>
+
+                                    <button
+                                      id={`btn-regenerate-${activeReq.id}`}
+                                      onClick={() => handleGenerateSectionText(activeReq, activeRequirementIndex)}
+                                      className="p-1 px-2 rounded bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 flex items-center gap-1 shadow-sm transition-all"
+                                      title="Skenerera om"
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                    </button>
+                                  </div>
+
+                                  {isCurrentlyEditingInline ? (
+                                    <div className="space-y-2 mt-4">
+                                      <div className="text-[10px] font-bold uppercase text-amber-500 font-mono">Manuell editering:</div>
+                                      <textarea
+                                        id="textarea-inline-edit"
+                                        value={editingText}
+                                        onChange={(e) => setEditingText(e.target.value)}
+                                        rows={10}
+                                        className="w-full p-3 bg-black border border-amber-500/30 rounded-lg text-xs leading-relaxed text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                                      />
+                                      <div className="flex justify-end gap-2 text-xs">
+                                        <button 
+                                          id="btn-cancel-inline-edit"
+                                          onClick={() => setIsCurrentlyEditingInline(false)}
+                                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded font-bold text-white mb-0"
+                                        >
+                                          Avbryt
+                                        </button>
+                                        <button 
+                                          id="btn-save-inline-edit"
+                                          onClick={() => saveInlineEdit(activeReq.id)}
+                                          className="px-3 py-1.5 bg-amber-500 text-black font-extrabold rounded hover:bg-amber-600 mb-0"
+                                        >
+                                          Spara ändringar
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-slate-300 leading-relaxed space-y-3 whitespace-pre-line select-text font-normal pt-2">
+                                      {currentDraft.text}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* PARAGRAPH LEVEL REVISION AUDIT-LOG CONNECTOR */}
+                                {currentDraft.history && currentDraft.history.length > 0 && (
+                                  <div className="mt-4 border-t border-white/5 pt-4 space-y-2.5">
+                                    <button
+                                      id="btn-toggle-par-history"
+                                      onClick={() => setViewingParagraphHistory(!viewingParagraphHistory)}
+                                      className="flex items-center justify-between w-full px-3 py-2 bg-white/[0.02] hover:bg-white/[0.06] rounded-lg text-xs font-bold text-slate-300 border border-white/5 transition-all"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="h-3.5 w-3.5 text-amber-500" />
+                                        <span>Svarshistorik & Versioner ({currentDraft.history.length} st)</span>
+                                      </div>
+                                      {viewingParagraphHistory ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                    </button>
+
+                                    {viewingParagraphHistory && (
+                                      <div className="bg-[#121214] p-3.5 rounded-lg border border-white/5 space-y-3 animate-fadeIn">
+                                        <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest block text-left">
+                                          Klicka på en version nedan för att se exakta skillnader mot nuvarande text:
+                                        </span>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {currentDraft.history.map((histText, hIdx) => {
+                                            const isSelected = selectedHistoryVersionIndex === hIdx;
+                                            const isCurrent = hIdx === currentDraft.history.length - 1;
+                                            
+                                            return (
+                                              <button
+                                                key={hIdx}
+                                                onClick={() => setSelectedHistoryVersionIndex(isSelected ? null : hIdx)}
+                                                className={`px-2.5 py-1 text-[11px] rounded-md font-bold border transition-all ${
+                                                  isSelected
+                                                    ? "bg-amber-500 text-black border-amber-500"
+                                                    : isCurrent 
+                                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                                                    : "bg-white/5 text-slate-400 border-white/5 hover:border-white/10"
+                                                }`}
+                                              >
+                                                v{hIdx + 1} {isCurrent ? "(Nuvarande)" : hIdx === 0 ? "(Original)" : ""}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+
+                                        {selectedHistoryVersionIndex !== null && (
+                                          <div className="space-y-3 pt-3 border-t border-white/5 text-left">
+                                            <div className="flex justify-between items-center bg-black/40 p-2 rounded-lg border border-white/5">
+                                              <span className="text-[10.5px] font-mono text-amber-400 font-bold block">
+                                                v{selectedHistoryVersionIndex + 1} vs Nuvarande (v{currentDraft.history.length})
+                                              </span>
+                                              
+                                              {selectedHistoryVersionIndex !== currentDraft.history.length - 1 && (
+                                                <button
+                                                  id="btn-revert-version"
+                                                  onClick={() => {
+                                                    const textToRevert = currentDraft.history![selectedHistoryVersionIndex];
+                                                    setBidDrafts(prev => {
+                                                      const tenderDrafts = prev[selectedTender.id] || {};
+                                                      const itemDraft = tenderDrafts[activeReq.id] || { text: "", history: [] };
+                                                      const history = itemDraft.history ? [...itemDraft.history, textToRevert] : [textToRevert];
+                                                      
+                                                      return {
+                                                        ...prev,
+                                                        [selectedTender.id]: {
+                                                          ...tenderDrafts,
+                                                          [activeReq.id]: {
+                                                            ...itemDraft,
+                                                            text: textToRevert,
+                                                            history
+                                                          }
+                                                        }
+                                                      };
+                                                    });
+                                                    setSelectedHistoryVersionIndex(null);
+                                                    showToast(`Framgångsrikt återfört svar till historiska version ${selectedHistoryVersionIndex + 1}!`, "success");
+                                                  }}
+                                                  className="px-2 py-1 bg-amber-500 text-black border border-amber-500 rounded text-[10px] font-bold transition-all flex items-center gap-1.5 hover:bg-amber-600"
+                                                >
+                                                  <RefreshCw className="h-2.5 w-2.5 text-black" />
+                                                  <span>Återställ till v{selectedHistoryVersionIndex + 1}</span>
+                                                </button>
+                                              )}
+                                            </div>
+
+                                            {/* Word Diff Visual Container */}
+                                            <div className="bg-[#09090B] p-3 rounded-lg border border-white/5 max-h-60 overflow-y-auto text-left leading-relaxed text-xs">
+                                              {computeWordDiff(currentDraft.history[selectedHistoryVersionIndex], currentDraft.text).map((part, pIdx) => {
+                                                if (part.type === "added") {
+                                                  return (
+                                                    <span key={pIdx} className="bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 font-medium px-1 rounded hover:bg-emerald-900/30 transition-colors mx-0.5 inline" title="Lagt till">
+                                                      {part.text}
+                                                    </span>
+                                                  );
+                                                } else if (part.type === "removed") {
+                                                  return (
+                                                    <span key={pIdx} className="bg-rose-950/20 border border-rose-500/20 text-rose-400 line-through px-1 rounded opacity-60 hover:bg-rose-950/40 transition-colors mx-0.5 inline" title="Borttaget">
+                                                      {part.text}
+                                                    </span>
+                                                  );
+                                                } else {
+                                                  return <span key={pIdx}>{part.text}</span>;
+                                                }
+                                              })}
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-4 text-[9.5px] text-slate-500 font-mono">
+                                              <span className="flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span> Gröna ord = Tillagda i nuvarande svar
+                                              </span>
+                                              <span className="flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 bg-rose-400 rounded-full line-through"></span> Röd-strykning = Borttaget i nuvarande svar
+                                              </span>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* REFINEMENT BOX CHAT INTERACTION FROM INPUT */}
+                                {currentTier !== SubscriptionTier.BASIC && (
+                                  <section className="bg-black/30 p-4 border border-white/5 rounded-xl space-y-3">
+                                    <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                                      <Bot className="h-3.5 w-3.5 text-amber-500" />
+                                      <span>Förfina valet med AI-feedback</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500">
+                                      Be roboten formulera om mer formellt, infoga fackbegrepp, eller komplettera data-referenser.
+                                    </p>
+                                    
+                                    <div className="flex gap-2">
+                                      <input
+                                        id="input-feedback"
+                                        type="text"
+                                        placeholder="Skriv feedback... t.ex 'gör mer formell och ta bort säljsnack'"
+                                        value={userFeedbackText}
+                                        onChange={(e) => setUserFeedbackText(e.target.value)}
+                                        disabled={isRefiningSection}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") handleRefineSectionText(activeReq, currentDraft.text);
+                                        }}
+                                        className="flex-1 bg-black/80 text-xs text-slate-100 border border-white/10 rounded-lg px-3 py-2.5 focus:outline-none focus:border-amber-500/50"
+                                      />
+                                      <button
+                                        id="btn-send-feedback"
+                                        onClick={() => handleRefineSectionText(activeReq, currentDraft.text)}
+                                        disabled={isRefiningSection || !userFeedbackText.trim()}
+                                        className="px-4 py-2 bg-white/10 hover:bg-white/20 disabled:bg-white/5 disabled:text-slate-600 border border-white/10 rounded-lg text-xs font-bold text-slate-300 transition-colors flex items-center justify-center mb-0"
+                                      >
+                                        {isRefiningSection ? (
+                                          <RefreshCw className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                          <Send className="h-3.5 w-3.5" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  </section>
+                                )}
+                              </div>
+                            );
+                          })()
+                        )}
+                      </>
                     )}
+
+                    {/* TAB B: WHOLE-BID SNAPSHOTS AND AUDITING PORTAL */}
+                    {bidConsoleTab === "snapshots" && (
+                      <div className="space-y-4 text-left">
+                        
+                        <div className="p-4 bg-amber-500/[0.02] border border-amber-500/10 rounded-xl space-y-1.5 text-left">
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-500 uppercase tracking-wider font-mono">
+                            <ShieldCheck className="h-4 w-4 text-amber-500" />
+                            <span>Säkrad Revision & Full-Bid Snapshots</span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-normal">
+                            Systemet tillhandahåller fullständig oföränderlig audit-loggning för att trygga regelefterlevnad i upphandlingsprocessen. Spara en historisk snapshot av anbudets alla kravsvar för att revisionsgranska eller återställa dem i klump.
+                          </p>
+                        </div>
+
+                        {/* Snapshot generation command board */}
+                        <form onSubmit={handleSaveBidSnapshot} className="bg-black/30 p-4 border border-white/5 rounded-xl space-y-3.5 text-left">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                            Frys nuvarande arbetsläge (Ta en ny Snapshot):
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              id="input-snapshot-label"
+                              type="text"
+                              required
+                              placeholder="Ange versionsetikett, t.ex. 'Draft v1.3 - Efter QA', 'Lina verifierad'..."
+                              value={snapshotLabel}
+                              onChange={(e) => setSnapshotLabel(e.target.value)}
+                              className="flex-1 bg-black/80 text-xs text-slate-100 border border-white/10 rounded-lg px-3 py-2.5 focus:outline-none focus:border-amber-500/50"
+                            />
+                            <button
+                              id="btn-save-snapshot"
+                              type="submit"
+                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow mb-0"
+                            >
+                              <Save className="h-3.5 w-3.5" />
+                              <span>Frys & Spara</span>
+                            </button>
+                          </div>
+                        </form>
+
+                        {/* Snapshots log deck */}
+                        <div className="space-y-3">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Revisionsregister (Audit Trail)</div>
+                          
+                          {(!bidSnapshots[selectedTender.id] || bidSnapshots[selectedTender.id].length === 0) ? (
+                            <div className="p-8 text-center bg-black/20 rounded-xl border border-dashed border-white/5 text-slate-500 text-xs font-medium">
+                              Inga historiska snapshots registrerade ännu. Det nuvarande utkastet är levande. Frys det ovan!
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {bidSnapshots[selectedTender.id].map((snap) => {
+                                const isExpanded = expandedSnapshotId === snap.id;
+                                const answeredCount = Object.keys(snap.drafts).length;
+                                
+                                return (
+                                  <div 
+                                    key={snap.id} 
+                                    className={`rounded-xl border transition-all ${
+                                      isExpanded 
+                                        ? "bg-[#0F0F11] border-amber-500/30 ring-1 ring-amber-500/5 shadow-lg shadow-black/40" 
+                                        : "bg-black/20 border-white/5 hover:border-white/10"
+                                    }`}
+                                  >
+                                    {/* Collapsed top view of snapshot item */}
+                                    <div 
+                                      onClick={() => setExpandedSnapshotId(isExpanded ? null : snap.id)}
+                                      className="p-3.5 flex items-center justify-between gap-4 cursor-pointer select-none"
+                                    >
+                                      <div className="flex gap-3 items-center min-w-0">
+                                        <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg flex-shrink-0">
+                                          <History className="h-4 w-4" />
+                                        </div>
+                                        <div className="min-w-0 text-left">
+                                          <span className="font-bold text-white block text-xs truncate leading-tight" title={snap.label}>
+                                            {snap.label}
+                                          </span>
+                                          <span className="text-[10px] text-slate-500 font-mono block mt-1 leading-none">
+                                            Skapad: {snap.timestamp} • {snap.author}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        <span className="text-[9.5px] font-bold px-2 py-0.5 bg-white/5 border border-white/10 text-slate-300 rounded-full font-mono">
+                                          {answeredCount} / {totalRequirementsCount} Delstycken
+                                        </span>
+                                        {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                      </div>
+                                    </div>
+
+                                    {/* Expanded comparison detail panel */}
+                                    {isExpanded && (
+                                      <div className="px-4 pb-4 border-t border-white/5 pt-4 space-y-4 bg-black/40 rounded-b-xl animate-fadeIn">
+                                        
+                                        {/* Action controls for snapshot */}
+                                        <div className="flex flex-wrap gap-2 justify-end">
+                                          <button
+                                            id={`btn-export-snap-${snap.id}`}
+                                            onClick={() => handleExportSnapshot(snap.id)}
+                                            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-bold rounded text-[11px] flex items-center gap-1.5 transition-all mb-0"
+                                          >
+                                            <FileDown className="h-3.5 w-3.5" />
+                                            <span>Ladda ner snapshot (.txt)</span>
+                                          </button>
+                                          <button
+                                            id={`btn-revert-snap-${snap.id}`}
+                                            onClick={() => handleRevertBidToSnapshot(snap.id)}
+                                            className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-black border border-amber-500/20 text-xs font-bold rounded flex items-center gap-1.5 transition-all shadow mb-0"
+                                          >
+                                            <RefreshCw className="h-3.5 w-3.5" />
+                                            <span>Reversera hela anbudet hit</span>
+                                          </button>
+                                        </div>
+
+                                        {/* Requirement by requirement LCS word diff tables */}
+                                        <div className="space-y-3.5">
+                                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
+                                            Avvikelserapport (Detta utkast vs Levanade anbudssvar):
+                                          </div>
+                                          
+                                          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                                            {selectedTender.requirements.map((req, rIdx) => {
+                                              const snapText = snap.drafts[req.id] || "";
+                                              const activeText = tenderDrafts[req.id]?.text || "";
+                                              const isSame = snapText === activeText;
+                                              
+                                              return (
+                                                <div key={req.id} className="p-3 bg-black/50 rounded-lg border border-white/5 space-y-2 text-xs">
+                                                  <div className="flex justify-between items-center text-[10px] border-b border-white/5 pb-1.5">
+                                                    <span className="font-bold text-amber-500 font-mono">
+                                                      STYCKKRAV {rIdx + 1}: "{req.text.substring(0, 45)}..."
+                                                    </span>
+                                                    <span className={`px-1.5 py-0.2 text-[9px] font-bold rounded uppercase ${
+                                                      isSame 
+                                                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/10" 
+                                                        : "bg-amber-500/10 text-amber-400 border border-amber-500/10"
+                                                    }`}>
+                                                      {isSame ? "Identisk" : "Utestående revision"}
+                                                    </span>
+                                                  </div>
+
+                                                  {/* LCS Visual Diff panel */}
+                                                  <div className="p-2.5 bg-[#080809] border border-white/5 rounded text-[11px] text-slate-300 leading-relaxed font-normal whitespace-pre-line text-left">
+                                                    {(!snapText && !activeText) ? (
+                                                      <span className="text-slate-600 italic">Inget svar genererat för detta stycke i varken denna snapshot eller live-anbudet.</span>
+                                                    ) : (
+                                                      computeWordDiff(snapText, activeText).map((part, pIdx) => {
+                                                        if (part.type === "added") {
+                                                          return (
+                                                            <span key={pIdx} className="bg-[#0f291e] border-b border-emerald-500/30 text-emerald-300 font-medium px-0.5 rounded cursor-help inline" title="Lagt till i nuvarande">
+                                                              {part.text}
+                                                            </span>
+                                                          );
+                                                        } else if (part.type === "removed") {
+                                                          return (
+                                                            <span key={pIdx} className="bg-[#2d0f14] border-b border-rose-500/20 text-rose-300 line-through px-0.5 rounded opacity-60 cursor-help inline" title="Borttaget i nuvarande (historisk text)">
+                                                              {part.text}
+                                                            </span>
+                                                          );
+                                                        } else {
+                                                          return <span key={pIdx}>{part.text}</span>;
+                                                        }
+                                                      })
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    )}
+
                   </div>
 
                   {/* PROMPT FLOATING INFO BOX ON THE FOOTER */}
-                  <div className="absolute bottom-4 left-4 right-4 h-12 bg-amber-500/[0.02] border border-dashed border-amber-500/20 rounded-lg flex items-center justify-between px-3 text-[10px] text-slate-400 pointer-events-none md:flex">
+                  <div className="absolute bottom-4 left-4 right-4 h-12 bg-amber-500/[0.02] border border-dashed border-amber-500/20 rounded-lg flex items-center justify-between px-3 text-[10px] text-slate-400 pointer-events-none md:flex z-10 backdrop-blur-md">
                     <span className="flex items-center gap-1 font-medium select-none">
                       <Bot className="h-3 w-3 text-amber-500" />
-                      Tenant: <strong className="text-slate-300">{profile?.companyName || "Ej ansluten"}</strong>
+                      Client: <strong className="text-slate-300">{profile?.companyName || "Ej ansluten"}</strong>
                     </span>
-                    <span>• Isolerad minnessfär (SOC-2 certifierad) •</span>
+                    <span>• Revision Säkrad • SOC-2 Type II •</span>
                     <span className="text-amber-500 font-bold">100% säkrat mot dataläckage</span>
                   </div>
                 </section>

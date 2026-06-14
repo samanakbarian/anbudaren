@@ -73,6 +73,17 @@ export interface BidDraft {
   };
 }
 
+export interface BidSnapshot {
+  id: string;
+  tenderId: string;
+  label: string;
+  timestamp: string;
+  author: string;
+  drafts: {
+    [requirementId: string]: string; // requirementId to text content mapping
+  };
+}
+
 export interface AppState {
   currentTier: SubscriptionTier;
   documents: IngestedDocument[];
