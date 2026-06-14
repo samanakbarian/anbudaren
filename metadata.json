@@ -1,0 +1,8 @@
+{
+  "name": "Remix: AutoBid SaaS",
+  "description": "En intelligent fleranvändarplattform för automatiserat anbudsarbete, CV-matchning, Tone of Voice-kloning och upphandlingsbevakning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
